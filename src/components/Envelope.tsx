@@ -98,21 +98,14 @@ export function Envelope({ locale }: { locale: Locale }) {
 
         {/* Wax seal */}
         <div
-          className={`absolute left-1/2 top-[58%] z-40 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-500 md:h-20 md:w-20 ${
-            // Arabic: dark green wax so the gold monogram shows, as in its photo.
-            locale === "ar"
-              ? "bg-[radial-gradient(circle_at_35%_30%,#2a5a45,var(--forest)_55%,var(--forest-deep))]"
-              : "bg-[radial-gradient(circle_at_35%_30%,var(--gold-soft),var(--gold)_55%,#8a6a28)]"
-          } ${
+          className={`absolute left-1/2 top-[58%] z-40 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_30%,var(--gold-soft),var(--gold)_55%,#8a6a28)] shadow-[0_4px_12px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-500 md:h-20 md:w-20 ${
             opened ? "scale-75 opacity-0" : "group-hover:scale-105"
           }`}
         >
           {/* Pressed rim of the wax */}
           <span
             aria-hidden
-            className={`absolute inset-1.5 rounded-full border md:inset-2 ${
-              locale === "ar" ? "border-gold/40" : "border-forest-deep/20"
-            }`}
+            className="absolute inset-1.5 rounded-full border border-forest-deep/20 md:inset-2"
           />
           {locale === "ar" ? (
             <ArabicMonogram className="relative h-11 w-auto md:h-14" />
