@@ -240,9 +240,15 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
           guestCount: 1,
         }),
       });
+      // Netlify sometimes returns an HTML error page; never assume JSON.
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        throw new Error(data.error || "Could not add guest.");
+        throw new Error(
+          data?.error ||
+            (res.status >= 500
+              ? "Server couldn't save the guest (storage may be down). Open /api/health."
+              : "Could not add guest."),
+        );
       }
       setForm(emptyGuest);
       setContact("email");

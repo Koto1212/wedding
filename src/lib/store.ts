@@ -43,6 +43,17 @@ function isReadOnlyDiskError(err: unknown): boolean {
 
 function blobs() {
   // Strong consistency: a check-in must be visible to the next scan at once.
+  // Prefer the runtime Blobs context Netlify injects into functions. If that
+  // is missing (some Next.js / Netlify setups), fall back to an explicit
+  // site ID + personal access token from env.
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token =
+    process.env.NETLIFY_BLOBS_TOKEN ||
+    process.env.NETLIFY_AUTH_TOKEN ||
+    process.env.NETLIFY_API_TOKEN;
+  if (siteID && token) {
+    return getStore({ name: STORE_NAME, consistency: "strong", siteID, token });
+  }
   return getStore({ name: STORE_NAME, consistency: "strong" });
 }
 
