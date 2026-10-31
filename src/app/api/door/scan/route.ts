@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { canCheckIn } from "@/lib/auth";
 import { checkInByToken } from "@/lib/db";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { LIMITS } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
 
 // QR codes hold the full check-in URL; accept that or a bare code.
 function tokenFrom(scanned: string): string {
   const match = scanned.match(/\/api\/checkin\/([^/?#\s]+)/);
-  return decodeURIComponent(match ? match[1] : scanned.trim());
+  const raw = decodeURIComponent(match ? match[1] : scanned.trim());
+  return raw.slice(0, LIMITS.token);
 }
 
 export async function POST(request: Request) {
@@ -14,6 +19,15 @@ export async function POST(request: Request) {
   }
 
   try {
+    const ip = clientIp(request);
+    const limited = await rateLimit(`door-scan:${ip}`, 120, 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Scanning too fast. Pause a moment." },
+        { status: 429 },
+      );
+    }
+
     const body = (await request.json()) as { code?: string };
     const token = tokenFrom(String(body.code ?? ""));
     if (!token) {

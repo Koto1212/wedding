@@ -5,6 +5,9 @@ import {
   removeGmailCredentials,
   saveGmailCredentials,
 } from "@/lib/gmail";
+import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
 
 async function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,17 +24,16 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as { email?: string; password?: string };
-    const email = String(body.email ?? "").trim();
-    const password = String(body.password ?? "").trim();
+    const email = clampString(body.email, LIMITS.email).toLowerCase();
+    const password = clampString(body.password, LIMITS.password);
 
-    if (!email || !email.includes("@")) {
+    if (!email || !isValidEmail(email)) {
       return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
     }
-    if (password.length < 8) {
+    // Gmail app passwords are 16 chars; allow a bit of slack for spaces (stripped).
+    if (password.replace(/\s+/g, "").length < 8) {
       return NextResponse.json(
-        // Gmail refuses normal account passwords for sending mail; only a
-        // 16-character app password works.
-        { error: "Enter your 16-character Gmail app password (your normal Gmail password won't work)." },
+        { error: "Enter your Gmail app password." },
         { status: 400 },
       );
     }
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
     const saved = await saveGmailCredentials(email, password);
     return NextResponse.json({ ok: true, email: saved.email });
   } catch (err) {
-    console.error("Saving Gmail failed:", err);
+    console.error("Could not save Gmail login:", err);
     return NextResponse.json({ error: "Could not save Gmail login." }, { status: 500 });
   }
 }

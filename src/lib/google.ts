@@ -1,3 +1,4 @@
+import { decryptSecret, encryptSecret } from "./crypto";
 import { siteUrl } from "./site";
 import { deleteKey, readJSON, writeJSON } from "./store";
 
@@ -12,7 +13,6 @@ export type GoogleAccount = {
 
 const GOOGLE_KEY = "google";
 
-// Short-lived cookie that ties Google's callback to the sign-in we started.
 export const GOOGLE_STATE_COOKIE = "google_oauth_state";
 
 export const GOOGLE_SCOPES = [
@@ -31,17 +31,28 @@ export function googleRedirectUri(): string {
 
 export async function getGoogleAccount(): Promise<GoogleAccount | null> {
   const account = await readJSON<GoogleAccount>(GOOGLE_KEY);
-  return account?.email && account.refreshToken ? account : null;
+  if (!account?.email || !account.refreshToken) return null;
+  try {
+    return {
+      ...account,
+      refreshToken: decryptSecret(account.refreshToken),
+    };
+  } catch (err) {
+    console.error("Could not decrypt Google refresh token:", err);
+    return null;
+  }
 }
 
 export async function saveGoogleAccount(account: GoogleAccount): Promise<void> {
-  await writeJSON(GOOGLE_KEY, account);
+  await writeJSON(GOOGLE_KEY, {
+    ...account,
+    refreshToken: encryptSecret(account.refreshToken),
+  });
 }
 
 export async function removeGoogleAccount(): Promise<void> {
   const account = await getGoogleAccount();
   if (account) {
-    // Best effort: also revoke the token on Google's side.
     await fetch(
       `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(account.refreshToken)}`,
       { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } },

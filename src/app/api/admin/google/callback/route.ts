@@ -7,12 +7,24 @@ import {
   isGoogleConfigured,
   saveGoogleAccount,
 } from "@/lib/google";
+import { safeEqual } from "@/lib/secrets";
+
+export const dynamic = "force-dynamic";
 
 function back(request: Request, result: string) {
-  return NextResponse.redirect(new URL(`/admin?google=${result}`, request.url));
+  const response = NextResponse.redirect(
+    new URL(`/admin?google=${result}`, request.url),
+  );
+  response.cookies.set(GOOGLE_STATE_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/api/admin/google",
+    maxAge: 0,
+  });
+  return response;
 }
 
-// Google sends the host back here after they approve (or cancel).
 export async function GET(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.redirect(new URL("/admin", request.url));
@@ -22,13 +34,19 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const jar = await cookies();
   const expectedState = jar.get(GOOGLE_STATE_COOKIE)?.value;
-  jar.delete({ name: GOOGLE_STATE_COOKIE, path: "/api/admin/google" });
 
   if (url.searchParams.get("error")) return back(request, "cancelled");
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  if (!code || !state || !expectedState || state !== expectedState) {
+  if (
+    !code ||
+    !state ||
+    !expectedState ||
+    code.length > 2048 ||
+    state.length > 256 ||
+    !safeEqual(state, expectedState)
+  ) {
     return back(request, "error");
   }
 
@@ -54,7 +72,6 @@ export async function GET(request: Request) {
       return back(request, "error");
     }
     if (!tokens.scope?.includes("gmail.send")) {
-      // The host unticked "Send email on your behalf" on the consent screen.
       return back(request, "no-send-permission");
     }
 

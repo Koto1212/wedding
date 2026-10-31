@@ -13,6 +13,7 @@ import { getGmailCredentials } from "@/lib/gmail";
 import { getGoogleAccount, isGoogleConfigured } from "@/lib/google";
 import { isMailConfigured, whatsappLink } from "@/lib/mailer";
 import type { RsvpStatus } from "@/lib/types";
+import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -57,16 +58,19 @@ export async function POST(request: Request) {
     if (!(await isAdminAuthenticated())) return unauthorized();
 
     const body = (await request.json()) as Record<string, unknown>;
-    const name = String(body.name ?? "").trim();
-    const email = String(body.email ?? "").trim();
-    const phone = String(body.phone ?? "").trim();
+    const name = clampString(body.name, LIMITS.name);
+    const email = clampString(body.email, LIMITS.email).toLowerCase();
+    const phone = clampString(body.phone, LIMITS.phone);
     const status = (String(body.status ?? "pending") as RsvpStatus) || "pending";
     const guestCount = Number(body.guestCount ?? 1);
-    const mealPreference = String(body.mealPreference ?? "").trim();
-    const message = String(body.message ?? "").trim();
+    const mealPreference = clampString(body.mealPreference, LIMITS.meal);
+    const message = clampString(body.message, LIMITS.message);
 
-    if (!name) {
+    if (!name || name.length < 2) {
       return jsonError("Name is required.", 400);
+    }
+    if (email && !isValidEmail(email)) {
+      return jsonError("Enter a valid email.", 400);
     }
     if (!VALID_STATUS.includes(status)) {
       return jsonError("Invalid status.", 400);
@@ -77,7 +81,9 @@ export async function POST(request: Request) {
       email,
       phone,
       status,
-      guestCount,
+      guestCount: Number.isFinite(guestCount)
+        ? Math.min(10, Math.max(1, Math.floor(guestCount)))
+        : 1,
       mealPreference,
       message,
     });

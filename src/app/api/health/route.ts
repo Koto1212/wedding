@@ -1,60 +1,28 @@
 import { connection, NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/auth";
 import { readJSON, storageBackend, writeJSON } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-// For an uptime monitor and for troubleshooting: 200 when guest storage can
-// be read and written, 503 (with the reason) when it can't.
-export async function GET() {
+// Public: only { ok }. Detailed diagnostics require an admin session or
+// HEALTH_SECRET query param — avoids leaking infra details.
+export async function GET(request: Request) {
   try {
     await connection();
   } catch {
-    // Still run the check even if connection() is unavailable.
+    // continue
   }
+
+  const url = new URL(request.url);
+  const healthSecret = (process.env.HEALTH_SECRET || "").trim();
+  const provided = (url.searchParams.get("key") || "").trim();
+  const detailed =
+    (healthSecret && provided && provided === healthSecret) ||
+    (await isAdminAuthenticated());
 
   const started = Date.now();
-  let backend: string = "unknown";
-  try {
-    backend = storageBackend();
-  } catch (err) {
-    const e = err as { message?: string };
-    return NextResponse.json(
-      {
-        ok: false,
-        storage: "unknown",
-        failedAt: "init",
-        error: String(e?.message ?? err).slice(0, 300),
-        ms: Date.now() - started,
-      },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const fail = (step: string, err: unknown) => {
-    console.error(`Health check failed at ${step}:`, err);
-    const e = err as { name?: string; message?: string };
-    return NextResponse.json(
-      {
-        ok: false,
-        storage: backend,
-        failedAt: step,
-        error: `${e?.name ?? "Error"}: ${String(e?.message ?? err).slice(0, 300)}`,
-        ms: Date.now() - started,
-        hint:
-          step === "init" || /Blobs is not configured/i.test(String(e?.message ?? err))
-            ? "Set NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN in Netlify env vars, then redeploy."
-            : undefined,
-      },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  };
-
   try {
     await readJSON("guests");
-  } catch (err) {
-    return fail("read", err);
-  }
-  try {
     const stamp = new Date().toISOString();
     await writeJSON("health", { checkedAt: stamp });
     const back = await readJSON<{ checkedAt: string }>("health");
@@ -62,7 +30,30 @@ export async function GET() {
       throw new Error("wrote a value but read back something else");
     }
   } catch (err) {
-    return fail("write", err);
+    console.error("Health check failed:", err);
+    if (!detailed) {
+      return NextResponse.json(
+        { ok: false },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const e = err as { name?: string; message?: string };
+    return NextResponse.json(
+      {
+        ok: false,
+        storage: storageBackend(),
+        error: `${e?.name ?? "Error"}: ${String(e?.message ?? err).slice(0, 300)}`,
+        ms: Date.now() - started,
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (!detailed) {
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   return NextResponse.json(

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { canCheckIn } from "@/lib/auth";
 import { checkInByToken } from "@/lib/db";
+import { LIMITS } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
 
 // The URL inside each guest's QR code, for scans made with a phone's own
 // camera app. Only door staff or a host can record an arrival; anyone else
@@ -9,7 +12,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
-  const { token } = await params;
+  const { token: raw } = await params;
+  const token = String(raw ?? "").slice(0, LIMITS.token);
   const here = `/api/checkin/${encodeURIComponent(token)}`;
 
   if (!(await canCheckIn())) {

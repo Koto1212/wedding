@@ -3,31 +3,47 @@ import { createGuest, markQrSent } from "@/lib/db";
 import { content, isLocale, type Locale } from "@/lib/i18n";
 import { isMailConfigured, sendQrEmail } from "@/lib/mailer";
 import { toWhatsappNumber } from "@/lib/phone";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
 import type { RsvpStatus } from "@/lib/types";
+import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   let locale: Locale = "en";
   try {
+    const ip = clientIp(request);
+    const limited = await rateLimit(`rsvp:${ip}`, 12, 60 * 60 * 1000, {
+      failOpen: true,
+    });
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many replies from this network. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limited.retryAfterSec) },
+        },
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
     if (isLocale(body.locale)) locale = body.locale;
     const errors = content(locale).rsvp.errors;
     const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
 
-    const name = String(body.name ?? "").trim();
-    const email = String(body.email ?? "").trim();
-    const phone = String(body.phone ?? "").trim();
+    const name = clampString(body.name, LIMITS.name);
+    const email = clampString(body.email, LIMITS.email).toLowerCase();
+    const phone = clampString(body.phone, LIMITS.phone);
     const status = String(body.status ?? "pending") as RsvpStatus;
     const guestCount = Number(body.guestCount ?? 1);
-    const message = String(body.message ?? "").trim();
+    const message = clampString(body.message, LIMITS.message);
 
     if (!name || name.length < 2) return fail(errors.name);
 
-    // Guests give one way to reach them: an email or a WhatsApp number.
     if (!email && !phone) return fail(errors.contact);
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(errors.email);
+    if (email && !isValidEmail(email)) return fail(errors.email);
     if (phone && !toWhatsappNumber(phone)) return fail(errors.phone);
 
-    // Guests answer yes or no; "maybe"/"pending" are only set by the hosts.
     if (status !== "attending" && status !== "declined") return fail(errors.status);
 
     const guest = await createGuest({
@@ -44,8 +60,6 @@ export async function POST(request: Request) {
       message,
     });
 
-    // Attending guests get their entry QR by email. A mail failure must not
-    // lose the RSVP; the hosts can resend from the dashboard.
     let emailSent = false;
     if (status === "attending" && email && (await isMailConfigured())) {
       try {
@@ -57,7 +71,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Attending guests can open their pass right away from the thank-you card.
     const passPath =
       status === "attending" ? `/pass/${guest.checkInToken}` : null;
 
