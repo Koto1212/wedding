@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { wedding } from "@/lib/wedding";
+import { ArabicMonogram } from "@/components/ArabicMonogram";
+import { content, type Locale } from "@/lib/i18n";
 
 type Stage = "closed" | "open" | "rise" | "leave" | "gone";
 
-export function Envelope() {
+export function Envelope({ locale }: { locale: Locale }) {
+  const c = content(locale);
   const [stage, setStage] = useState<Stage>("closed");
 
   useEffect(() => {
@@ -50,13 +52,13 @@ export function Envelope() {
           opened ? "opacity-0" : "opacity-100"
         }`}
       >
-        You are cordially invited
+        {c.envelope.invited}
       </p>
 
       <button
         type="button"
         onClick={open}
-        aria-label="Open the invitation"
+        aria-label={c.envelope.openLabel}
         className="group relative aspect-[3/2] w-[min(88vw,520px)] cursor-pointer [perspective:1200px] focus-visible:outline-none"
       >
         {/* Envelope back */}
@@ -69,10 +71,10 @@ export function Envelope() {
           }`}
         >
           <span className="script text-4xl text-forest md:text-5xl">
-            {wedding.partnerOne} & {wedding.partnerTwo}
+            {c.couple.joined}
           </span>
           <span className="mt-2 text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-gold">
-            {wedding.dateDisplay}
+            {c.date.display}
           </span>
         </div>
 
@@ -96,13 +98,27 @@ export function Envelope() {
 
         {/* Wax seal */}
         <div
-          className={`absolute left-1/2 top-[58%] z-40 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_30%,var(--gold-soft),var(--gold)_55%,#8a6a28)] shadow-[0_4px_12px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-500 md:h-20 md:w-20 ${
+          className={`absolute left-1/2 top-[58%] z-40 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-500 md:h-20 md:w-20 ${
+            // Arabic: dark green wax so the gold monogram shows, as in its photo.
+            locale === "ar"
+              ? "bg-[radial-gradient(circle_at_35%_30%,#2a5a45,var(--forest)_55%,var(--forest-deep))]"
+              : "bg-[radial-gradient(circle_at_35%_30%,var(--gold-soft),var(--gold)_55%,#8a6a28)]"
+          } ${
             opened ? "scale-75 opacity-0" : "group-hover:scale-105"
           }`}
         >
-          <span className="display text-lg text-forest-deep md:text-xl">
-            {wedding.monogram.replace(/\s/g, "")}
-          </span>
+          {/* Pressed rim of the wax */}
+          <span
+            aria-hidden
+            className={`absolute inset-1.5 rounded-full border md:inset-2 ${
+              locale === "ar" ? "border-gold/40" : "border-forest-deep/20"
+            }`}
+          />
+          {locale === "ar" ? (
+            <ArabicMonogram className="relative h-11 w-auto md:h-14" />
+          ) : (
+            <span className="display text-lg text-forest-deep md:text-xl">{c.couple.seal}</span>
+          )}
         </div>
       </button>
 
@@ -111,7 +127,7 @@ export function Envelope() {
           opened ? "opacity-0" : "animate-pulse opacity-100"
         }`}
       >
-        Tap the seal to open
+        {c.envelope.tap}
       </p>
     </div>
   );

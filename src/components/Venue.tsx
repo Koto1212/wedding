@@ -1,13 +1,16 @@
 import { Corner } from "@/components/Ornament";
 import { Reveal } from "@/components/Reveal";
 import { SectionHeading } from "@/components/SectionHeading";
+import { content, type Locale } from "@/lib/i18n";
 import { wedding } from "@/lib/wedding";
 
-export function Venue() {
+export function Venue({ locale }: { locale: Locale }) {
+  const c = content(locale);
+
   return (
     <section id="venue" className="section-pad bg-ivory-soft">
       <Reveal className="mx-auto max-w-3xl">
-        <SectionHeading eyebrow="Where" title="The venue" />
+        <SectionHeading eyebrow={c.venue.eyebrow} title={c.venue.title} />
 
         <div className="relative mt-14 border border-gold/50 bg-ivory px-6 py-12 text-center sm:px-12">
           <Corner className="left-3 top-3" />
@@ -15,13 +18,13 @@ export function Venue() {
           <Corner className="bottom-3 right-3 rotate-180" />
           <Corner className="bottom-3 left-3 -rotate-90" />
 
-          <h3 className="display text-4xl text-forest md:text-5xl">{wedding.venue.name}</h3>
+          <h3 className="display text-4xl text-forest md:text-5xl">{c.venue.name}</h3>
           <p className="mt-4 text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-muted">
-            {wedding.venue.address}
+            {c.venue.address}
           </p>
           <div className="hairline mx-auto my-8 max-w-[10rem]" />
           <p className="display mx-auto max-w-md text-xl italic leading-relaxed text-muted">
-            {wedding.venue.note}
+            {c.venue.note}
           </p>
           <a
             href={wedding.venue.mapUrl}
@@ -29,7 +32,7 @@ export function Venue() {
             rel="noopener noreferrer"
             className="btn-primary mt-10"
           >
-            Get directions
+            {c.venue.directions}
           </a>
         </div>
       </Reveal>

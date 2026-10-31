@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Pinyon_Script, Source_Sans_3 } from "next/font/google";
-import { wedding } from "@/lib/wedding";
+import {
+  Amiri,
+  Aref_Ruqaa,
+  Cormorant_Garamond,
+  Pinyon_Script,
+  Source_Sans_3,
+} from "next/font/google";
+import { content } from "@/lib/i18n";
 import "./globals.css";
 
 const display = Cormorant_Garamond({
@@ -22,9 +28,23 @@ const body = Source_Sans_3({
   weight: ["400", "500", "600", "700"],
 });
 
+// Arabic pages: Amiri for text, Aref Ruqaa as the calligraphic counterpart
+// of the script names.
+const arabic = Amiri({
+  variable: "--font-arabic",
+  subsets: ["arabic"],
+  weight: ["400", "700"],
+});
+
+const arabicScript = Aref_Ruqaa({
+  variable: "--font-arabic-script",
+  subsets: ["arabic"],
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
-  title: `${wedding.partnerOne} & ${wedding.partnerTwo} — Wedding Invitation`,
-  description: `You're invited to celebrate ${wedding.partnerOne} and ${wedding.partnerTwo} on ${wedding.dateDisplay}.`,
+  title: content("en").meta.title,
+  description: content("en").meta.description,
 };
 
 export default function RootLayout({
@@ -35,7 +55,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${display.variable} ${script.variable} ${body.variable} h-full antialiased`}
+      className={`${display.variable} ${script.variable} ${body.variable} ${arabic.variable} ${arabicScript.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-ivory text-ink">
         {children}

@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import QRCode from "qrcode";
 import { getGoogleAccount, isGoogleConfigured } from "./google";
+import { content } from "./i18n";
 import { toWhatsappNumber } from "./phone";
 import { siteUrl } from "./site";
 import type { Guest } from "./types";
@@ -62,23 +63,9 @@ export function whatsappLink(guest: Guest): string | null {
   const number = toWhatsappNumber(guest.phone);
   if (!number || guest.status !== "attending") return null;
 
-  const text = [
-    `Dear ${guest.name},`,
-    "",
-    `We're so happy you'll be celebrating with us! Here is your personal entry pass for ${wedding.partnerOne} & ${wedding.partnerTwo}'s wedding — please show the QR code at the door:`,
-    // First link in the message, so WhatsApp previews it as the pass card.
-    passUrl(guest),
-    "",
-    // No emoji: WhatsApp Desktop on Windows garbles them when they arrive
-    // through a wa.me link.
-    `Date: ${wedding.invitation.weekday}, ${wedding.dateDisplay} · ${wedding.timeDisplay}`,
-    `Location: ${wedding.venue.name}, ${wedding.venue.address}`,
-    // Second link: WhatsApp previews only the first, so the pass card stays.
-    wedding.venue.mapUrl,
-    "",
-    wedding.adultsOnly.rsvpHint,
-  ].join("\n");
-
+  // The pass link comes first so WhatsApp previews it as the pass card; no
+  // emoji, since WhatsApp Desktop on Windows garbles them from wa.me links.
+  const text = content(guest.locale).whatsapp(guest.name, passUrl(guest));
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
@@ -91,46 +78,50 @@ function escapeHtml(value: string): string {
 }
 
 function emailHtml(guest: Guest): string {
+  const c = content(guest.locale);
+  const rtl = c.dir === "rtl";
   const name = escapeHtml(guest.name);
-  const couple = `${wedding.partnerOne} &amp; ${wedding.partnerTwo}`;
-  const party =
-    guest.guestCount > 1 ? `Admits ${guest.guestCount} guests` : "Admits 1 guest";
+  // Arabic: a font every mail app has, and no letter spacing or italics,
+  // which break joined Arabic letters.
+  const serif = rtl ? "Tahoma,Arial,sans-serif" : "Georgia,'Times New Roman',serif";
+  const sans = rtl ? "Tahoma,Arial,sans-serif" : "Arial,Helvetica,sans-serif";
+  const spacing = (px: number) => (rtl ? "0" : `${px}px`);
+  const italic = rtl ? "normal" : "italic";
 
   return `<!doctype html>
-<html>
-  <body style="margin:0;padding:0;background:#163428;">
+<html lang="${c.locale}" dir="${c.dir}">
+  <body style="margin:0;padding:0;background:#163428;" dir="${c.dir}">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#163428;padding:32px 12px;">
       <tr>
         <td align="center">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#faf7f1;border:1px solid #b8923f;">
             <tr>
-              <td align="center" style="padding:44px 32px 12px;font-family:Georgia,'Times New Roman',serif;color:#163428;">
-                <p style="margin:0;font-size:13px;letter-spacing:4px;text-transform:uppercase;color:#b8923f;">${escapeHtml(wedding.monogram)}</p>
-                <p style="margin:24px 0 0;font-size:34px;font-style:italic;line-height:1.2;">${couple}</p>
-                <p style="margin:12px 0 0;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#5c6b62;">${escapeHtml(wedding.dateDisplay)}</p>
+              <td align="center" style="padding:44px 32px 12px;font-family:${serif};color:#163428;">
+                <p style="margin:0;font-size:13px;letter-spacing:${spacing(4)};text-transform:uppercase;color:#b8923f;">${escapeHtml(c.couple.monogram)}</p>
+                <p style="margin:24px 0 0;font-size:34px;font-style:${italic};line-height:1.3;">${escapeHtml(c.couple.joined)}</p>
+                <p style="margin:12px 0 0;font-size:13px;letter-spacing:${spacing(3)};text-transform:uppercase;color:#5c6b62;">${escapeHtml(c.date.display)}</p>
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:20px 36px 0;font-family:Georgia,'Times New Roman',serif;color:#14201a;font-size:17px;line-height:1.6;">
-                Dear ${name},<br />
-                thank you for your reply — we are so happy you will be celebrating with us.
-                Please bring this pass to the door; it will be scanned when you arrive.
+              <td align="center" style="padding:20px 36px 0;font-family:${serif};color:#14201a;font-size:17px;line-height:1.7;">
+                ${escapeHtml(c.email.greeting(guest.name))}<br />
+                ${escapeHtml(c.email.intro)}
               </td>
             </tr>
             <tr>
               <td align="center" style="padding:28px 32px 8px;">
-                <img src="cid:entry-pass" width="220" height="220" alt="Your entry QR code" style="display:block;border:8px solid #ffffff;" />
+                <img src="cid:entry-pass" width="220" height="220" alt="${escapeHtml(c.email.qrAlt)}" style="display:block;border:8px solid #ffffff;" />
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:8px 32px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#163428;font-weight:bold;">
-                ${name} · ${party}
+              <td align="center" style="padding:8px 32px 0;font-family:${sans};font-size:12px;letter-spacing:${spacing(3)};text-transform:uppercase;color:#163428;font-weight:bold;">
+                ${name} · ${escapeHtml(c.pass.admits(guest.guestCount))}
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:24px 36px 0;font-family:Georgia,'Times New Roman',serif;color:#5c6b62;font-size:15px;line-height:1.6;">
-                ${escapeHtml(wedding.timeDisplay)}<br />
-                ${escapeHtml(wedding.venue.name)} · ${escapeHtml(wedding.city)}
+              <td align="center" style="padding:24px 36px 0;font-family:${serif};color:#5c6b62;font-size:15px;line-height:1.7;">
+                ${escapeHtml(c.date.time)}<br />
+                ${escapeHtml(c.venue.name)} · ${escapeHtml(c.venue.city)}
               </td>
             </tr>
             <tr>
@@ -138,8 +129,8 @@ function emailHtml(guest: Guest): string {
                 <table role="presentation" cellpadding="0" cellspacing="0">
                   <tr>
                     <td align="center" bgcolor="#163428" style="background:#163428;">
-                      <a href="${escapeHtml(wedding.venue.mapUrl)}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#f3efe6;text-decoration:none;">
-                        View location
+                      <a href="${escapeHtml(wedding.venue.mapUrl)}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:${sans};font-size:${rtl ? "14px" : "12px"};font-weight:bold;letter-spacing:${spacing(3)};text-transform:uppercase;color:#f3efe6;text-decoration:none;">
+                        ${escapeHtml(c.venue.viewLocation)}
                       </a>
                     </td>
                   </tr>
@@ -147,9 +138,9 @@ function emailHtml(guest: Guest): string {
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:24px 36px 44px;font-family:Georgia,'Times New Roman',serif;color:#5c6b62;font-size:14px;font-style:italic;line-height:1.6;">
-                This code is personal and works once — please don't share it.<br />
-                ${escapeHtml(wedding.adultsOnly.rsvpHint)}
+              <td align="center" style="padding:24px 36px 44px;font-family:${serif};color:#5c6b62;font-size:14px;font-style:${italic};line-height:1.7;">
+                ${escapeHtml(c.email.personal)}<br />
+                ${escapeHtml(c.adultsHint)}
               </td>
             </tr>
           </table>
@@ -175,11 +166,12 @@ export async function sendQrEmail(guest: Guest): Promise<void> {
     color: { dark: "#0d2219", light: "#ffffff" },
   });
 
+  const c = content(guest.locale);
   await sender.transport.sendMail({
-    from: `"${wedding.partnerOne} & ${wedding.partnerTwo}" <${sender.from}>`,
+    from: `"${c.couple.joined}" <${sender.from}>`,
     to: guest.email,
-    subject: `Your entry pass — ${wedding.partnerOne} & ${wedding.partnerTwo}, ${wedding.dateDisplay}`,
-    text: `Dear ${guest.name},\n\nThank you for your reply! Your personal entry QR code is attached — please bring it to the door on ${wedding.dateDisplay}. It works once, so please don't share it.\n\n${wedding.venue.name}, ${wedding.city}\nLocation: ${wedding.venue.mapUrl}\n\n${wedding.partnerOne} & ${wedding.partnerTwo}`,
+    subject: c.email.subject,
+    text: c.email.text(guest.name),
     html: emailHtml(guest),
     attachments: [
       {

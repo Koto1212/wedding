@@ -218,6 +218,40 @@ body {
   border-color: var(--gold-soft);
 }
 
+/* Arabic (right-to-left) pages. Arabic letters join, so the wide letter
+   spacing used on English labels would break words apart. */
+[dir="rtl"] {
+  font-family: var(--font-arabic), "Times New Roman", serif;
+}
+
+[dir="rtl"] .display,
+[dir="rtl"] .line-field,
+[dir="rtl"] .field {
+  font-family: var(--font-arabic), "Times New Roman", serif;
+  letter-spacing: 0;
+}
+
+[dir="rtl"] .script {
+  font-family: var(--font-arabic-script), var(--font-arabic), serif;
+  line-height: 1.45;
+}
+
+[dir="rtl"] [class*="tracking-"],
+[dir="rtl"] .btn-primary,
+[dir="rtl"] .btn-ghost {
+  letter-spacing: 0 !important;
+}
+
+[dir="rtl"] .btn-primary,
+[dir="rtl"] .btn-ghost {
+  font-size: 0.95rem;
+}
+
+/* Amiri has no true italic; slanted Arabic reads poorly. */
+[dir="rtl"] .italic {
+  font-style: normal;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

@@ -1,3 +1,5 @@
+import type { Locale } from "./i18n";
+
 export type RsvpStatus = "attending" | "declined" | "maybe" | "pending";
 
 export type Guest = {
@@ -5,6 +7,8 @@ export type Guest = {
   name: string;
   email: string;
   phone: string;
+  // Language the guest replied in; their pass, email and WhatsApp use it
+  locale: Locale;
   status: RsvpStatus;
   guestCount: number;
   mealPreference: string;
@@ -23,6 +27,7 @@ export type GuestInput = {
   name: string;
   email: string;
   phone?: string;
+  locale?: Locale;
   status: RsvpStatus;
   guestCount: number;
   mealPreference?: string;

@@ -1,8 +1,9 @@
 import { ImageResponse } from "next/og";
+import type { CSSProperties } from "react";
 import QRCode from "qrcode";
+import { content } from "./i18n";
 import { checkInUrl } from "./mailer";
 import type { Guest } from "./types";
-import { wedding } from "./wedding";
 
 // Landscape so WhatsApp shows it as a large link preview.
 export const CARD_SIZE = { width: 1200, height: 630 };
@@ -12,6 +13,8 @@ const FOREST_DEEP = "#0d2219";
 const IVORY = "#faf7f1";
 const GOLD = "#b8923f";
 const MUTED = "#5c6b62";
+
+const ARABIC_ALPHABET = "ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي٠١٢٣٤٥٦٧٨٩،؛؟ـ";
 
 // Fetches a Google font as TTF, subset to the text we draw. If it can't be
 // loaded the card still renders in the built-in font.
@@ -29,38 +32,78 @@ async function loadFont(family: string, text: string, italic = false) {
   }
 }
 
+// The image renderer joins Arabic letters but lays words out left to right,
+// so Arabic lines are split into words placed from the right. Runs of Latin
+// words (e.g. a guest name typed in English) stay together in their order.
+function RtlLine({ text, style }: { text: string; style: CSSProperties }) {
+  const tokens: string[] = [];
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const latin = /^[\x00-\x7F]+$/.test(word) && /[A-Za-z0-9]/.test(word);
+    const prev = tokens[tokens.length - 1];
+    if (latin && prev !== undefined && /^[\x00-\x7F ]+$/.test(prev) && /[A-Za-z0-9]/.test(prev)) {
+      tokens[tokens.length - 1] = `${prev} ${word}`;
+    } else {
+      tokens.push(word);
+    }
+  }
+  return (
+    <div style={{ ...style, display: "flex", flexDirection: "row-reverse", gap: "0.2em" }}>
+      {tokens.map((token, i) => (
+        <span key={i}>{token}</span>
+      ))}
+    </div>
+  );
+}
+
 export async function renderPassCard(guest: Guest): Promise<ImageResponse> {
+  const c = content(guest.locale);
+  const rtl = c.dir === "rtl";
   const qr = await QRCode.toDataURL(checkInUrl(guest), {
     width: 460,
     margin: 1,
     color: { dark: FOREST_DEEP, light: "#ffffff" },
   });
 
-  const couple = `${wedding.partnerOne} & ${wedding.partnerTwo}`;
-  const party = guest.guestCount > 1 ? `Admits ${guest.guestCount} guests` : "Admits 1 guest";
+  // Arabic vowel marks pull in font features the image renderer can't read
+  // yet, so they're dropped on the card (the text reads fine without them).
+  const plain = (s: string) => (rtl ? s.replace(/[ً-ٰٟ]/g, "") : s);
+  const couple = plain(c.couple.joined);
   const lines = [
-    "Entry pass",
-    wedding.dateDisplay,
-    `${guest.name} · ${party}`,
-    wedding.timeDisplay,
-    wedding.venue.name,
-    wedding.venue.address,
-    "Please show this at the door · Works once",
-  ];
+    c.pass.eyebrow,
+    c.date.display,
+    `${guest.name} · ${c.pass.admits(guest.guestCount)}`,
+    c.date.time,
+    c.venue.name,
+    c.venue.address,
+    c.pass.cardFooter,
+  ].map(plain);
+  const allText = [couple, ...lines].join(" ");
+  // Latin fonts only get Latin letters; Arabic letters make them fail to load.
+  const latinText = allText.replace(/[^\x00-\x7F·—]/g, "");
 
+  // Latin fonts are always loaded so English text (or a guest name typed in
+  // English on the Arabic card) still has glyphs.
   const fonts = (
     await Promise.all([
-      loadFont("Pinyon Script", couple),
+      rtl ? null : loadFont("Pinyon Script", couple),
       // Labels are drawn uppercase, so the font subset needs those letters too.
-      loadFont("Cormorant Garamond", lines.join(" ") + lines.join(" ").toUpperCase()),
-      loadFont("Cormorant Garamond", wedding.timeDisplay + lines[6], true),
+      loadFont("Cormorant Garamond", latinText + latinText.toUpperCase()),
+      rtl ? null : loadFont("Cormorant Garamond", lines[3] + lines[6], true),
+      // Most Arabic fonts (including Amiri and Aref Ruqaa used on the website)
+      // use features the image renderer can't read yet or don't join letters
+      // here; El Messiri works with the whole alphabet, so any name renders.
+      rtl ? loadFont("El Messiri", ARABIC_ALPHABET + allText) : null,
     ])
   ).filter((f) => f !== null);
 
-  const serif = "Cormorant Garamond";
+  const serif = rtl ? "El Messiri, Cormorant Garamond" : "Cormorant Garamond";
+  const script = rtl ? "El Messiri" : "Pinyon Script";
+  const Line = ({ text, style }: { text: string; style: CSSProperties }) =>
+    rtl ? <RtlLine text={text} style={style} /> : <div style={{ ...style, display: "flex" }}>{text}</div>;
+  const italic = rtl ? ("normal" as const) : ("italic" as const);
   const label = {
-    fontSize: 20,
-    letterSpacing: 6,
+    fontSize: rtl ? 26 : 20,
+    letterSpacing: rtl ? 0 : 6,
     textTransform: "uppercase" as const,
     color: GOLD,
   };
@@ -115,21 +158,18 @@ export async function renderPassCard(guest: Guest): Promise<ImageResponse> {
                 color: FOREST,
               }}
             >
-              <div style={{ ...label, display: "flex" }}>{lines[0]}</div>
-              <div style={{ fontFamily: "Pinyon Script", fontSize: 76, marginTop: 6, display: "flex" }}>
-                {couple}
-              </div>
-              <div style={{ ...label, color: MUTED, fontSize: 19, display: "flex" }}>{lines[1]}</div>
+              <Line text={lines[0]} style={label} />
+              <Line
+                text={couple}
+                style={{ fontFamily: script, fontSize: rtl ? 66 : 76, marginTop: 6 }}
+              />
+              <Line text={lines[1]} style={{ ...label, color: MUTED, fontSize: rtl ? 24 : 19 }} />
               <div style={{ width: 160, height: 1, background: GOLD, marginTop: 26, marginBottom: 26, display: "flex" }} />
-              <div style={{ fontSize: 30, display: "flex" }}>{lines[2]}</div>
-              <div style={{ fontSize: 26, fontStyle: "italic", color: MUTED, marginTop: 14, display: "flex" }}>
-                {lines[3]}
-              </div>
-              <div style={{ fontSize: 28, marginTop: 14, display: "flex" }}>{lines[4]}</div>
-              <div style={{ fontSize: 22, color: MUTED, marginTop: 4, display: "flex" }}>{lines[5]}</div>
-              <div style={{ fontSize: 20, fontStyle: "italic", color: MUTED, marginTop: 22, display: "flex" }}>
-                {lines[6]}
-              </div>
+              <Line text={lines[2]} style={{ fontSize: 30 }} />
+              <Line text={lines[3]} style={{ fontSize: 26, fontStyle: italic, color: MUTED, marginTop: 14 }} />
+              <Line text={lines[4]} style={{ fontSize: 28, marginTop: 14 }} />
+              <Line text={lines[5]} style={{ fontSize: 22, color: MUTED, marginTop: 4 }} />
+              <Line text={lines[6]} style={{ fontSize: 20, fontStyle: italic, color: MUTED, marginTop: 22 }} />
             </div>
           </div>
         </div>

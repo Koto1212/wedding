@@ -460,6 +460,14 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
                     <tr key={guest.id} className="border-b border-line align-top">
                       <td className="px-4 py-3 font-medium text-forest">
                         {guest.name}
+                        {guest.locale === "ar" ? (
+                          <span
+                            title="Replied in Arabic — their pass, email and WhatsApp are in Arabic"
+                            className="ml-2 border border-gold/60 px-1.5 py-0.5 text-[0.6rem] font-semibold text-gold"
+                          >
+                            AR
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-muted">
                         {guest.email}

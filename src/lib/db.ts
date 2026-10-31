@@ -14,6 +14,7 @@ function normalize(g: Guest): Guest {
   return {
     ...g,
     phone: g.phone ?? "",
+    locale: g.locale ?? "en",
     whatsappSentAt: g.whatsappSentAt ?? null,
     checkedInAt: g.checkedInAt ?? null,
     qrSentAt: g.qrSentAt ?? null,
@@ -64,6 +65,7 @@ export async function createGuest(input: GuestInput): Promise<Guest> {
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
       phone: (input.phone ?? "").trim(),
+      locale: input.locale ?? "en",
       status: input.status,
       guestCount: Math.max(1, Math.floor(input.guestCount) || 1),
       mealPreference: (input.mealPreference ?? "").trim(),
