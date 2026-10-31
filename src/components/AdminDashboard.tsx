@@ -29,6 +29,7 @@ type Props = {
 };
 
 type GoogleStatus = { available: boolean; email: string | null };
+type GmailStatus = { email: string | null };
 
 const GOOGLE_MESSAGES: Record<string, string> = {
   connected: "Google account connected — entry passes will be sent from it.",
@@ -64,6 +65,10 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
   const [mailConfigured, setMailConfigured] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
+  const [gmail, setGmail] = useState<GmailStatus | null>(null);
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [gmailPassword, setGmailPassword] = useState("");
+  const [gmailSaving, setGmailSaving] = useState(false);
   const [whatsappFor, setWhatsappFor] = useState<DashGuest | null>(null);
   const [googleNote, setGoogleNote] = useState<string | null>(
     googleResult ? GOOGLE_MESSAGES[googleResult] ?? null : null,
@@ -81,12 +86,15 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
         guests: DashGuest[];
         summary: Summary;
         mailConfigured: boolean;
+        gmail: GmailStatus;
         google: GoogleStatus;
       };
       setGuests(data.guests);
       setSummary(data.summary);
       setMailConfigured(data.mailConfigured);
+      setGmail(data.gmail);
       setGoogle(data.google);
+      if (data.gmail?.email) setGmailEmail(data.gmail.email);
     } finally {
       setLoading(false);
     }
@@ -136,6 +144,39 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
     if (!confirm("Stop sending entry passes from this Google account?")) return;
     await fetch("/api/admin/google/disconnect", { method: "POST" });
     setGoogleNote("Google account disconnected.");
+    await loadGuests();
+  }
+
+  async function saveGmail(event: FormEvent) {
+    event.preventDefault();
+    setGmailSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: gmailEmail, password: gmailPassword }),
+      });
+      const data = (await res.json()) as { error?: string; email?: string };
+      if (!res.ok) {
+        setMessage(data.error || "Could not save Gmail login.");
+        return;
+      }
+      setGmailPassword("");
+      setMessage(`Gmail saved — passes will send from ${data.email}.`);
+      await loadGuests();
+    } finally {
+      setGmailSaving(false);
+    }
+  }
+
+  async function clearGmail() {
+    if (!confirm("Remove the saved Gmail login?")) return;
+    await fetch("/api/admin/gmail", { method: "DELETE" });
+    setGmail({ email: null });
+    setGmailEmail("");
+    setGmailPassword("");
+    setMessage("Gmail login removed.");
     await loadGuests();
   }
 
@@ -290,51 +331,106 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
         ) : null}
 
         <section className="mt-6 border border-line bg-ivory p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="display text-2xl text-forest">Entry-pass emails</h2>
               <p className="mt-1 text-sm text-muted">
-                {!google
+                {!gmail
                   ? "Checking…"
-                  : google.email
-                    ? `Sending from ${google.email}`
-                    : mailConfigured
-                      ? "Sending with the Gmail app password from .env.local"
-                      : "Off — guests won't receive their QR code until you connect an account."}
+                  : gmail.email
+                    ? `Sending from ${gmail.email}`
+                    : google?.email
+                      ? `Sending from ${google.email}`
+                      : mailConfigured
+                        ? "Sending with the Gmail settings from the server"
+                        : "Add your Gmail below so guests can get their QR pass by email."}
               </p>
             </div>
-            {google?.email ? (
+            {gmail?.email ? (
               <button
                 type="button"
                 className="text-sm font-semibold text-red-800 hover:underline"
-                onClick={() => void disconnectGoogle()}
+                onClick={() => void clearGmail()}
               >
-                Disconnect
+                Remove Gmail
               </button>
-            ) : google?.available ? (
-              <a
-                href="/api/admin/google/connect"
-                className="inline-flex items-center gap-3 border border-line bg-white px-5 py-3 text-sm font-semibold text-ink shadow-sm transition hover:border-gold"
-              >
-                <svg aria-hidden viewBox="0 0 48 48" className="h-5 w-5">
-                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.2C12.5 13.6 17.8 9.5 24 9.5z" />
-                  <path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z" />
-                  <path fill="#FBBC05" d="M10.6 28.5c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.2z" />
-                  <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.2C6.6 42.6 14.6 48 24 48z" />
-                </svg>
-                Sign in with Google
-              </a>
             ) : null}
           </div>
+
+          <form
+            onSubmit={saveGmail}
+            className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end"
+          >
+            <label className="space-y-2">
+              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
+                Gmail
+              </span>
+              <input
+                className="field"
+                type="email"
+                required
+                autoComplete="username"
+                placeholder="you@gmail.com"
+                value={gmailEmail}
+                onChange={(e) => setGmailEmail(e.target.value)}
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
+                App password
+              </span>
+              <input
+                className="field"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="16-character app password"
+                value={gmailPassword}
+                onChange={(e) => setGmailPassword(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn-primary h-[2.9rem]" disabled={gmailSaving}>
+              {gmailSaving ? "Saving…" : gmail?.email ? "Update" : "Save"}
+            </button>
+          </form>
+          <p className="mt-3 text-sm text-muted">
+            Use a Gmail{" "}
+            <a
+              href="https://myaccount.google.com/apppasswords"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-gold/60 underline-offset-2 hover:text-forest"
+            >
+              App Password
+            </a>{" "}
+            (Google Account → Security → 2-Step Verification → App passwords). Your normal
+            Gmail password will not work here.
+          </p>
+
           {googleNote ? (
             <p className="mt-4 text-sm font-medium text-forest">{googleNote}</p>
           ) : null}
-          {google && !google.available && !mailConfigured ? (
-            <p className="mt-4 text-sm text-muted">
-              To enable “Sign in with Google”, add <code>GOOGLE_CLIENT_ID</code> and{" "}
-              <code>GOOGLE_CLIENT_SECRET</code> to <code>.env.local</code> and restart
-              the server.
-            </p>
+
+          {google?.available ? (
+            <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-line pt-5">
+              <p className="text-sm text-muted">Or connect with Google OAuth instead:</p>
+              {google.email ? (
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-red-800 hover:underline"
+                  onClick={() => void disconnectGoogle()}
+                >
+                  Disconnect {google.email}
+                </button>
+              ) : (
+                <a
+                  href="/api/admin/google/connect"
+                  className="inline-flex items-center gap-3 border border-line bg-white px-5 py-3 text-sm font-semibold text-ink shadow-sm transition hover:border-gold"
+                >
+                  Sign in with Google
+                </a>
+              )}
+            </div>
           ) : null}
         </section>
 

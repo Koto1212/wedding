@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import QRCode from "qrcode";
+import { getGmailCredentials } from "./gmail";
 import { getGoogleAccount, isGoogleConfigured } from "./google";
 import { content } from "./i18n";
 import { toWhatsappNumber } from "./phone";
@@ -9,9 +10,21 @@ import { wedding } from "./wedding";
 
 type Sender = { from: string; transport: Transporter };
 
-// Prefer the Gmail account connected with "Sign in with Google"; fall back to
-// a Gmail app password from .env.local.
+function appPasswordSender(user: string, pass: string): Sender {
+  return {
+    from: user,
+    transport: nodemailer.createTransport({
+      service: "gmail",
+      auth: { user, pass },
+    }),
+  };
+}
+
+// Prefer the Gmail saved on the dashboard; then Google sign-in; then .env.
 async function getSender(): Promise<Sender | null> {
+  const saved = await getGmailCredentials();
+  if (saved) return appPasswordSender(saved.email, saved.appPassword);
+
   const google = isGoogleConfigured() ? await getGoogleAccount() : null;
   if (google) {
     return {
@@ -30,16 +43,7 @@ async function getSender(): Promise<Sender | null> {
   }
 
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    return {
-      from: process.env.GMAIL_USER,
-      transport: nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
-        },
-      }),
-    };
+    return appPasswordSender(process.env.GMAIL_USER, process.env.GMAIL_APP_PASSWORD);
   }
 
   return null;
@@ -154,7 +158,7 @@ function emailHtml(guest: Guest): string {
 export async function sendQrEmail(guest: Guest): Promise<void> {
   const sender = await getSender();
   if (!sender) {
-    throw new Error("Email is not set up. Sign in with Google on the dashboard first.");
+    throw new Error("Email is not set up. Add your Gmail on the dashboard first.");
   }
   if (!guest.email || guest.email === "unlisted@local") {
     throw new Error("This guest has no email address.");

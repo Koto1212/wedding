@@ -9,6 +9,7 @@ import {
   summarizeGuests,
   updateGuest,
 } from "@/lib/db";
+import { getGmailCredentials } from "@/lib/gmail";
 import { getGoogleAccount, isGoogleConfigured } from "@/lib/google";
 import { isMailConfigured, whatsappLink } from "@/lib/mailer";
 import type { RsvpStatus } from "@/lib/types";
@@ -26,6 +27,9 @@ export async function GET() {
     guests: guests.map((g) => ({ ...g, whatsappLink: whatsappLink(g) })),
     summary: summarizeGuests(guests),
     mailConfigured: await isMailConfigured(),
+    gmail: {
+      email: (await getGmailCredentials())?.email ?? null,
+    },
     google: {
       available: isGoogleConfigured(),
       email: (await getGoogleAccount())?.email ?? null,
