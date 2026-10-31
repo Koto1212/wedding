@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArabicMonogram } from "@/components/ArabicMonogram";
 import { content, type Locale } from "@/lib/i18n";
 
 export function SiteNav({ locale }: { locale: Locale }) {
@@ -30,8 +31,12 @@ export function SiteNav({ locale }: { locale: Locale }) {
       }`}
     >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 md:px-8">
-        <a href="#top" className="display text-xl tracking-wide md:text-2xl">
-          {c.couple.monogram}
+        <a href="#top" aria-label={c.couple.joined} className="display text-xl tracking-wide md:text-2xl">
+          {locale === "ar" ? (
+            <ArabicMonogram tone="gold" className="h-9 w-auto md:h-10" />
+          ) : (
+            c.couple.monogram
+          )}
         </a>
         <div className="flex items-center gap-6 md:gap-8">
           <ul className="hidden items-center gap-8 text-[0.72rem] font-semibold uppercase tracking-[0.18em] md:flex">
