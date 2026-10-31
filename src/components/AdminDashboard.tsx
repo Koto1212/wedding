@@ -75,6 +75,8 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
   const [gmailEmail, setGmailEmail] = useState("");
   const [gmailPassword, setGmailPassword] = useState("");
   const [gmailSaving, setGmailSaving] = useState(false);
+  // Feedback shown inside the Gmail section, next to the form it is about.
+  const [gmailNote, setGmailNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [whatsappFor, setWhatsappFor] = useState<DashGuest | null>(null);
   const [googleNote, setGoogleNote] = useState<string | null>(
     googleResult ? GOOGLE_MESSAGES[googleResult] ?? null : null,
@@ -156,7 +158,7 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
   async function saveGmail(event: FormEvent) {
     event.preventDefault();
     setGmailSaving(true);
-    setMessage(null);
+    setGmailNote(null);
     try {
       const res = await fetch("/api/admin/gmail", {
         method: "POST",
@@ -165,11 +167,12 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
       });
       const data = (await res.json()) as { error?: string; email?: string };
       if (!res.ok) {
-        setMessage(data.error || "Could not save Gmail login.");
+        setGmailNote({ ok: false, text: data.error || "Could not save Gmail login." });
         return;
       }
       setGmailPassword("");
-      setMessage(`Gmail saved — passes will send from ${data.email}.`);
+      setGmail({ email: data.email ?? gmailEmail });
+      setGmailNote({ ok: true, text: `Saved — entry passes will now be sent from ${data.email}.` });
       await loadGuests();
     } finally {
       setGmailSaving(false);
@@ -182,7 +185,7 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
     setGmail({ email: null });
     setGmailEmail("");
     setGmailPassword("");
-    setMessage("Gmail login removed.");
+    setGmailNote({ ok: true, text: "Gmail removed — passes won't be emailed until you add one." });
     await loadGuests();
   }
 
@@ -350,7 +353,7 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
                 {!gmail
                   ? "Checking…"
                   : gmail.email
-                    ? `Sending from ${gmail.email}`
+                    ? "Guests' entry passes are emailed from this Gmail."
                     : google?.email
                       ? `Sending from ${google.email}`
                       : mailConfigured
@@ -358,16 +361,42 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
                         : "Add your Gmail below so guests can get their QR pass by email."}
               </p>
             </div>
-            {gmail?.email ? (
+          </div>
+
+          {gmail?.email ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border border-forest/30 bg-forest/5 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  aria-hidden
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-forest text-sm text-ivory"
+                >
+                  ✓
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted">
+                    Connected Gmail
+                  </p>
+                  <p className="truncate font-semibold text-forest">{gmail.email}</p>
+                </div>
+              </div>
               <button
                 type="button"
                 className="text-sm font-semibold text-red-800 hover:underline"
                 onClick={() => void clearGmail()}
               >
-                Remove Gmail
+                Remove
               </button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+
+          {gmailNote ? (
+            <p
+              role="status"
+              className={`mt-4 text-sm font-medium ${gmailNote.ok ? "text-forest" : "text-red-800"}`}
+            >
+              {gmailNote.text}
+            </p>
+          ) : null}
 
           <form
             onSubmit={saveGmail}
