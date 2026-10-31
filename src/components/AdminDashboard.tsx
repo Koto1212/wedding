@@ -47,10 +47,15 @@ const emptyGuest = {
   name: "",
   email: "",
   phone: "",
-  status: "pending" as RsvpStatus,
+  status: "attending" as RsvpStatus,
   guestCount: 1,
   message: "",
 };
+
+type Contact = "email" | "whatsapp";
+
+const labelClass =
+  "text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted";
 
 export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
   const [authed, setAuthed] = useState(initiallyAuthed);
@@ -60,6 +65,7 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(initiallyAuthed);
   const [form, setForm] = useState(emptyGuest);
+  const [contact, setContact] = useState<Contact>("email");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [mailConfigured, setMailConfigured] = useState(false);
@@ -215,13 +221,19 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
       const res = await fetch("/api/admin/guests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          email: contact === "email" ? form.email : "",
+          phone: contact === "whatsapp" ? form.phone : "",
+          guestCount: 1,
+        }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error || "Could not add guest.");
       }
       setForm(emptyGuest);
+      setContact("email");
       setMessage("Guest added.");
       await loadGuests();
     } catch (err) {
@@ -436,83 +448,130 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
 
         <section className="mt-10 border border-line bg-ivory p-6">
           <h2 className="display text-3xl text-forest">Add guest</h2>
-          <form
-            onSubmit={onAddGuest}
-            className="mt-6 grid gap-4 md:grid-cols-2"
-          >
-            <label className="space-y-2">
-              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                Name
-              </span>
+          <form onSubmit={onAddGuest} className="mt-6 space-y-8">
+            <label className="block">
+              <span className={labelClass}>Name</span>
               <input
-                className="field"
+                className="line-field display text-2xl"
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                autoComplete="name"
               />
             </label>
-            <label className="space-y-2">
-              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                Email
-              </span>
-              <input
-                className="field"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+
+            <fieldset>
+              <legend className={`${labelClass} mb-3`}>Will they attend?</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    { value: "attending" as const, label: "Joyfully accepts" },
+                    { value: "declined" as const, label: "Regretfully declines" },
+                  ] as const
+                ).map((choice) => {
+                  const selected = form.status === choice.value;
+                  return (
+                    <label
+                      key={choice.value}
+                      className={`flex cursor-pointer items-center gap-3 border px-4 py-3 transition-colors ${
+                        selected
+                          ? "border-forest bg-forest text-ivory"
+                          : "border-line text-forest hover:border-gold"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="admin-status"
+                        value={choice.value}
+                        checked={selected}
+                        onChange={() => setForm({ ...form, status: choice.value })}
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                          selected ? "border-gold-soft" : "border-gold"
+                        }`}
+                      >
+                        {selected ? <span className="h-2 w-2 rounded-full bg-gold-soft" /> : null}
+                      </span>
+                      <span className="display text-lg italic leading-tight">{choice.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className={labelClass}>Send their entry pass by</span>
+                <div role="radiogroup" className="inline-flex border border-gold/60 p-0.5">
+                  {(
+                    [
+                      { value: "email" as const, label: "Email" },
+                      { value: "whatsapp" as const, label: "WhatsApp" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={contact === option.value}
+                      onClick={() => setContact(option.value)}
+                      className={`px-4 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] transition-colors ${
+                        contact === option.value
+                          ? "bg-forest text-ivory"
+                          : "text-forest hover:bg-gold/10"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {contact === "email" ? (
+                <input
+                  key="email"
+                  className="line-field mt-3"
+                  type="email"
+                  dir="ltr"
+                  required
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  autoComplete="email"
+                />
+              ) : (
+                <input
+                  key="whatsapp"
+                  className="line-field mt-3"
+                  type="tel"
+                  dir="ltr"
+                  inputMode="tel"
+                  required
+                  placeholder="079 123 4567"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  autoComplete="tel"
+                />
+              )}
+            </div>
+
+            <label className="block">
+              <span className={labelClass}>A note</span>
+              <textarea
+                className="line-field min-h-24 resize-y"
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                placeholder="Song requests, dietary notes, well wishes…"
               />
             </label>
-            <label className="space-y-2">
-              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                WhatsApp number
-              </span>
-              <input
-                className="field"
-                type="tel"
-                placeholder="079 123 4567"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                Status
-              </span>
-              <select
-                className="field"
-                value={form.status}
-                onChange={(e) =>
-                  setForm({ ...form, status: e.target.value as RsvpStatus })
-                }
-              >
-                <option value="pending">Pending</option>
-                <option value="attending">Attending</option>
-                <option value="declined">Declined</option>
-                <option value="maybe">Maybe</option>
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                Guest count
-              </span>
-              <input
-                className="field"
-                type="number"
-                min={1}
-                max={10}
-                value={form.guestCount}
-                onChange={(e) =>
-                  setForm({ ...form, guestCount: Number(e.target.value) || 1 })
-                }
-              />
-            </label>
-            <div className="md:col-span-2">
-              <button type="submit" className="btn-primary" disabled={saving}>
+
+            <div>
+              <button type="submit" className="btn-primary min-w-48" disabled={saving}>
                 {saving ? "Saving…" : "Add guest"}
               </button>
-              {message ? (
-                <p className="mt-3 text-sm text-muted">{message}</p>
-              ) : null}
+              {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
             </div>
           </form>
         </section>
