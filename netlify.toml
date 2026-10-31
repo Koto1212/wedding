@@ -1,0 +1,10 @@
+# Netlify detects Next.js and runs it with its Next.js runtime.
+# Guests, check-ins and the Google sign-in are kept in Netlify Blobs
+# (see src/lib/store.ts); passwords and keys go in Site settings →
+# Environment variables, never in this file.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
