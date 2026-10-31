@@ -233,41 +233,6 @@ export function RsvpForm() {
                 )}
               </div>
 
-              <div
-                className={`flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-gold/30 py-4 ${
-                  form.status === "declined" ? "opacity-40" : ""
-                }`}
-              >
-                <div>
-                  <span className={labelClass}>Number of guests</span>
-                  <p className="display mt-1 text-base italic text-muted">
-                    {wedding.adultsOnly.rsvpHint}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    aria-label="One fewer guest"
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/60 text-lg text-forest transition hover:border-forest disabled:opacity-40"
-                    disabled={form.status === "declined" || form.guestCount <= 1}
-                    onClick={() => setForm({ ...form, guestCount: form.guestCount - 1 })}
-                  >
-                    −
-                  </button>
-                  <span className="display w-8 text-center text-3xl text-forest" aria-live="polite">
-                    {form.status === "declined" ? 1 : form.guestCount}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="One more guest"
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/60 text-lg text-forest transition hover:border-forest disabled:opacity-40"
-                    disabled={form.status === "declined" || form.guestCount >= 10}
-                    onClick={() => setForm({ ...form, guestCount: form.guestCount + 1 })}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
 
               <label className="block">
                 <span className={labelClass}>A note for the couple</span>
