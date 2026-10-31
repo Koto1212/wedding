@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { getStore } from "@netlify/blobs";
+import { getStore, type Store } from "@netlify/blobs";
 
 // Small JSON key-value storage. On Netlify the site runs in short-lived
 // functions with no lasting disk, so data lives in Netlify Blobs; anywhere
@@ -8,32 +8,38 @@ import { getStore } from "@netlify/blobs";
 
 const STORE_NAME = "wedding";
 const DATA_DIR = path.join(process.cwd(), "data");
-const MAX_RETRIES = 8;
 
 // Set once a file write fails because the server's disk is read-only: from
 // then on this server instance uses Blobs.
 let diskReadOnly = false;
 
-// `NETLIFY` alone isn't enough — it's set while building, not reliably while
-// the site's functions run — so any sign of Netlify or a serverless function
-// counts.
-function onNetlify(): boolean {
-  const env = process.env;
+function hasBlobsContext(): boolean {
   return Boolean(
+    process.env.NETLIFY_BLOBS_CONTEXT ||
+      (globalThis as { netlifyBlobsContext?: unknown }).netlifyBlobsContext,
+  );
+}
+
+// Prefer Blobs whenever Netlify injects context, or when we have explicit
+// credentials, or when the disk is known read-only.
+function useBlobs(): boolean {
+  return (
     diskReadOnly ||
-      env.NETLIFY_BLOBS_CONTEXT ||
-      (globalThis as { netlifyBlobsContext?: unknown }).netlifyBlobsContext ||
-      env.NETLIFY ||
-      env.SITE_ID ||
-      env.DEPLOY_ID ||
-      env.AWS_LAMBDA_FUNCTION_NAME ||
-      env.LAMBDA_TASK_ROOT ||
-      process.cwd().startsWith("/var/task"),
+    hasBlobsContext() ||
+    Boolean(
+      (process.env.NETLIFY_SITE_ID || process.env.SITE_ID) &&
+        (process.env.NETLIFY_BLOBS_TOKEN ||
+          process.env.NETLIFY_AUTH_TOKEN ||
+          process.env.NETLIFY_API_TOKEN),
+    ) ||
+    Boolean(process.env.NETLIFY) ||
+    Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+    process.cwd().startsWith("/var/task")
   );
 }
 
 export function storageBackend(): "netlify-blobs" | "local-files" {
-  return onNetlify() ? "netlify-blobs" : "local-files";
+  return useBlobs() ? "netlify-blobs" : "local-files";
 }
 
 function isReadOnlyDiskError(err: unknown): boolean {
@@ -41,20 +47,24 @@ function isReadOnlyDiskError(err: unknown): boolean {
   return code === "EROFS" || code === "EACCES" || code === "EPERM";
 }
 
-function blobs() {
-  // Strong consistency: a check-in must be visible to the next scan at once.
-  // Prefer the runtime Blobs context Netlify injects into functions. If that
-  // is missing (some Next.js / Netlify setups), fall back to an explicit
-  // site ID + personal access token from env.
+function blobs(): Store {
   const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
   const token =
     process.env.NETLIFY_BLOBS_TOKEN ||
     process.env.NETLIFY_AUTH_TOKEN ||
     process.env.NETLIFY_API_TOKEN;
+
+  // Explicit credentials are the reliable path on Next.js / Netlify when the
+  // automatic Blobs context is missing from the function runtime.
   if (siteID && token) {
-    return getStore({ name: STORE_NAME, consistency: "strong", siteID, token });
+    return getStore({ name: STORE_NAME, siteID, token });
   }
-  return getStore({ name: STORE_NAME, consistency: "strong" });
+  if (hasBlobsContext()) {
+    return getStore({ name: STORE_NAME });
+  }
+  throw new Error(
+    "Netlify Blobs is not configured. In Netlify → Environment variables, set NETLIFY_SITE_ID (Project ID) and NETLIFY_AUTH_TOKEN (personal access token), then redeploy.",
+  );
 }
 
 function fileFor(key: string): string {
@@ -62,7 +72,7 @@ function fileFor(key: string): string {
 }
 
 export async function readJSON<T>(key: string): Promise<T | null> {
-  if (onNetlify()) {
+  if (useBlobs()) {
     return ((await blobs().get(key, { type: "json" })) as T | null) ?? null;
   }
   try {
@@ -73,7 +83,7 @@ export async function readJSON<T>(key: string): Promise<T | null> {
 }
 
 export async function writeJSON(key: string, value: unknown): Promise<void> {
-  if (onNetlify()) {
+  if (useBlobs()) {
     await blobs().setJSON(key, value);
     return;
   }
@@ -82,56 +92,37 @@ export async function writeJSON(key: string, value: unknown): Promise<void> {
     await fs.writeFile(fileFor(key), JSON.stringify(value, null, 2), "utf8");
   } catch (err) {
     if (!isReadOnlyDiskError(err)) throw err;
-    // Running somewhere without a writable disk: switch to Blobs.
     diskReadOnly = true;
     await blobs().setJSON(key, value);
   }
 }
 
 export async function deleteKey(key: string): Promise<void> {
-  if (onNetlify()) {
+  if (useBlobs()) {
     await blobs().delete(key);
     return;
   }
   await fs.rm(fileFor(key), { force: true });
 }
 
-// Serialises local read-modify-write cycles within this process.
 const localLocks = new Map<string, Promise<unknown>>();
 
 /**
- * Reads `key`, lets `change` compute a new value, and saves it without losing
- * a write that happened in between (two door phones scanning at once, say).
- * `change` may run more than once, so it must not have side effects.
- * Return `value: undefined` to leave the stored data untouched.
+ * Reads `key`, lets `change` compute a new value, and saves it.
+ * On Netlify this is a simple get→change→set (fine for a wedding guest list).
  */
 export async function updateJSON<T, R>(
   key: string,
   initial: T,
   change: (current: T) => { value?: T; result: R },
 ): Promise<R> {
-  if (onNetlify()) {
+  if (useBlobs()) {
     const store = blobs();
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const entry = await store.getWithMetadata(key, { type: "json" });
-      const { value, result } = change((entry?.data as T | undefined) ?? initial);
-      if (value === undefined) return result;
-
-      const written = entry?.etag
-        ? await store.setJSON(key, value, { onlyIfMatch: entry.etag })
-        : await store.setJSON(key, value, { onlyIfNew: true });
-      if (written.modified) return result;
-
-      // Not saved. If nobody else changed the entry in the meantime, the
-      // conditional write itself isn't being honoured: save outright.
-      const now = await store.getMetadata(key);
-      if ((now?.etag ?? undefined) === (entry?.etag ?? undefined)) {
-        await store.setJSON(key, value);
-        return result;
-      }
-      // Someone else saved first: re-read and apply the change again.
-    }
-    throw new Error(`Could not save "${key}" — too many simultaneous changes.`);
+    const current = ((await store.get(key, { type: "json" })) as T | null) ?? initial;
+    const { value, result } = change(current);
+    if (value === undefined) return result;
+    await store.setJSON(key, value);
+    return result;
   }
 
   const previous = localLocks.get(key) ?? Promise.resolve();
@@ -145,8 +136,6 @@ export async function updateJSON<T, R>(
       return result;
     } catch (err) {
       if (!isReadOnlyDiskError(err)) throw err;
-      // No writable disk: redo the whole change against Blobs, so it's based
-      // on the data stored there rather than on an empty local file.
       diskReadOnly = true;
       return updateJSON(key, initial, change);
     }

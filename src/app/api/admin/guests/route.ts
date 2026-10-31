@@ -14,10 +14,16 @@ import { getGoogleAccount, isGoogleConfigured } from "@/lib/google";
 import { isMailConfigured, whatsappLink } from "@/lib/mailer";
 import type { RsvpStatus } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 const VALID_STATUS: RsvpStatus[] = ["attending", "declined", "maybe", "pending"];
 
 async function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+function jsonError(error: string, status: number) {
+  return NextResponse.json({ error }, { status });
 }
 
 export async function GET() {
@@ -47,9 +53,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await isAdminAuthenticated())) return unauthorized();
-
   try {
+    if (!(await isAdminAuthenticated())) return unauthorized();
+
     const body = (await request.json()) as Record<string, unknown>;
     const name = String(body.name ?? "").trim();
     const email = String(body.email ?? "").trim();
@@ -60,10 +66,10 @@ export async function POST(request: Request) {
     const message = String(body.message ?? "").trim();
 
     if (!name) {
-      return NextResponse.json({ error: "Name is required." }, { status: 400 });
+      return jsonError("Name is required.", 400);
     }
     if (!VALID_STATUS.includes(status)) {
-      return NextResponse.json({ error: "Invalid status." }, { status: 400 });
+      return jsonError("Invalid status.", 400);
     }
 
     const guest = await createGuest({
@@ -78,8 +84,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ guest }, { status: 201 });
   } catch (err) {
-    console.error("Guest change failed:", err);
-    return NextResponse.json({ error: "Could not create guest." }, { status: 500 });
+    console.error("Guest create failed:", err);
+    const msg = err instanceof Error ? err.message : "Could not create guest.";
+    // Surface Blobs setup errors so the dashboard can show what to fix.
+    if (/Blobs is not configured|MissingBlobs/i.test(msg)) {
+      return jsonError(msg, 503);
+    }
+    return jsonError("Could not create guest. Check /api/health.", 500);
   }
 }
 
