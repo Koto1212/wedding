@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { setAdminSession, verifyAdminPassword } from "@/lib/auth";
+import { applyAdminSession, verifyAdminPassword } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -10,8 +10,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
     }
 
-    await setAdminSession();
-    return NextResponse.json({ ok: true });
+    const response = NextResponse.json({ ok: true });
+    applyAdminSession(response);
+    return response;
   } catch {
     return NextResponse.json({ error: "Login failed." }, { status: 500 });
   }

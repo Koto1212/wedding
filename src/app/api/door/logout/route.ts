@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { clearDoorSession } from "@/lib/auth";
+import { clearDoorSessionCookie } from "@/lib/auth";
 
 export async function POST() {
-  await clearDoorSession();
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  clearDoorSessionCookie(response);
+  return response;
 }
