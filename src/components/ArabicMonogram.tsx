@@ -12,8 +12,8 @@ export function ArabicMonogram({
   return (
     <Image
       src="/monogram-ar.png"
-      width={870}
-      height={1296}
+      width={1093}
+      height={1376}
       alt={title ?? ""}
       aria-hidden={title ? undefined : true}
       className={`object-contain ${className}`}
