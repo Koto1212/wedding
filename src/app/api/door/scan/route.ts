@@ -33,7 +33,8 @@ export async function POST(request: Request) {
       guestCount: guest.guestCount,
       checkedInAt: guest.checkedInAt,
     });
-  } catch {
+  } catch (err) {
+    console.error("Door scan failed:", err);
     return NextResponse.json({ error: "Could not check this pass." }, { status: 500 });
   }
 }

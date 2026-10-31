@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       status === "attending" ? `/pass/${guest.checkInToken}` : null;
 
     return NextResponse.json({ ok: true, emailSent, passPath }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("RSVP failed:", err);
     return NextResponse.json(
       { error: content(locale).rsvp.errors.server },
       { status: 500 },

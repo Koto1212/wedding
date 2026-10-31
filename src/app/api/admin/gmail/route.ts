@@ -38,7 +38,8 @@ export async function POST(request: Request) {
 
     const saved = await saveGmailCredentials(email, password);
     return NextResponse.json({ ok: true, email: saved.email });
-  } catch {
+  } catch (err) {
+    console.error("Saving Gmail failed:", err);
     return NextResponse.json({ error: "Could not save Gmail login." }, { status: 500 });
   }
 }

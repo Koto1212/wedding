@@ -10,12 +10,35 @@ const STORE_NAME = "wedding";
 const DATA_DIR = path.join(process.cwd(), "data");
 const MAX_RETRIES = 8;
 
+// Set once a file write fails because the server's disk is read-only: from
+// then on this server instance uses Blobs.
+let diskReadOnly = false;
+
+// `NETLIFY` alone isn't enough — it's set while building, not reliably while
+// the site's functions run — so any sign of Netlify or a serverless function
+// counts.
 function onNetlify(): boolean {
+  const env = process.env;
   return Boolean(
-    process.env.NETLIFY_BLOBS_CONTEXT ||
-      process.env.NETLIFY ||
-      (globalThis as { netlifyBlobsContext?: unknown }).netlifyBlobsContext,
+    diskReadOnly ||
+      env.NETLIFY_BLOBS_CONTEXT ||
+      (globalThis as { netlifyBlobsContext?: unknown }).netlifyBlobsContext ||
+      env.NETLIFY ||
+      env.SITE_ID ||
+      env.DEPLOY_ID ||
+      env.AWS_LAMBDA_FUNCTION_NAME ||
+      env.LAMBDA_TASK_ROOT ||
+      process.cwd().startsWith("/var/task"),
   );
+}
+
+export function storageBackend(): "netlify-blobs" | "local-files" {
+  return onNetlify() ? "netlify-blobs" : "local-files";
+}
+
+function isReadOnlyDiskError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return code === "EROFS" || code === "EACCES" || code === "EPERM";
 }
 
 function blobs() {
@@ -43,8 +66,15 @@ export async function writeJSON(key: string, value: unknown): Promise<void> {
     await blobs().setJSON(key, value);
     return;
   }
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(fileFor(key), JSON.stringify(value, null, 2), "utf8");
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.writeFile(fileFor(key), JSON.stringify(value, null, 2), "utf8");
+  } catch (err) {
+    if (!isReadOnlyDiskError(err)) throw err;
+    // Running somewhere without a writable disk: switch to Blobs.
+    diskReadOnly = true;
+    await blobs().setJSON(key, value);
+  }
 }
 
 export async function deleteKey(key: string): Promise<void> {
@@ -80,17 +110,35 @@ export async function updateJSON<T, R>(
         ? await store.setJSON(key, value, { onlyIfMatch: entry.etag })
         : await store.setJSON(key, value, { onlyIfNew: true });
       if (written.modified) return result;
+
+      // Not saved. If nobody else changed the entry in the meantime, the
+      // conditional write itself isn't being honoured: save outright.
+      const now = await store.getMetadata(key);
+      if ((now?.etag ?? undefined) === (entry?.etag ?? undefined)) {
+        await store.setJSON(key, value);
+        return result;
+      }
       // Someone else saved first: re-read and apply the change again.
     }
     throw new Error(`Could not save "${key}" — too many simultaneous changes.`);
   }
 
   const previous = localLocks.get(key) ?? Promise.resolve();
-  const run = previous.then(async () => {
+  const run = previous.then(async (): Promise<R> => {
     const current = (await readJSON<T>(key)) ?? initial;
     const { value, result } = change(current);
-    if (value !== undefined) await writeJSON(key, value);
-    return result;
+    if (value === undefined) return result;
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(fileFor(key), JSON.stringify(value, null, 2), "utf8");
+      return result;
+    } catch (err) {
+      if (!isReadOnlyDiskError(err)) throw err;
+      // No writable disk: redo the whole change against Blobs, so it's based
+      // on the data stored there rather than on an empty local file.
+      diskReadOnly = true;
+      return updateJSON(key, initial, change);
+    }
   });
   localLocks.set(key, run.catch(() => undefined));
   return run;

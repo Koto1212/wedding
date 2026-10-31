@@ -22,7 +22,16 @@ async function unauthorized() {
 
 export async function GET() {
   if (!(await isAdminAuthenticated())) return unauthorized();
-  const guests = await listGuests();
+  let guests;
+  try {
+    guests = await listGuests();
+  } catch (err) {
+    console.error("Loading guests failed:", err);
+    return NextResponse.json(
+      { error: "Couldn't load the guest list. Check /api/health." },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({
     guests: guests.map((g) => ({ ...g, whatsappLink: whatsappLink(g) })),
     summary: summarizeGuests(guests),
@@ -68,7 +77,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ guest }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("Guest change failed:", err);
     return NextResponse.json({ error: "Could not create guest." }, { status: 500 });
   }
 }
@@ -119,7 +129,8 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ guest });
-  } catch {
+  } catch (err) {
+    console.error("Guest change failed:", err);
     return NextResponse.json({ error: "Could not update guest." }, { status: 500 });
   }
 }
@@ -140,7 +151,8 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (err) {
+    console.error("Guest change failed:", err);
     return NextResponse.json({ error: "Could not delete guest." }, { status: 500 });
   }
 }

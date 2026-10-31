@@ -90,6 +90,13 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
         setAuthed(false);
         return;
       }
+      // On a server error keep what's on screen and say so, rather than
+      // treating the error reply as a guest list (which crashed the page).
+      if (!res.ok) {
+        const failed = (await res.json().catch(() => null)) as { error?: string } | null;
+        setMessage(failed?.error || "Couldn't load the guest list. Please refresh in a moment.");
+        return;
+      }
       const data = (await res.json()) as {
         guests: DashGuest[];
         summary: Summary;
@@ -97,12 +104,14 @@ export function AdminDashboard({ initiallyAuthed, googleResult }: Props) {
         gmail: GmailStatus;
         google: GoogleStatus;
       };
-      setGuests(data.guests);
+      setGuests(data.guests ?? []);
       setSummary(data.summary);
       setMailConfigured(data.mailConfigured);
       setGmail(data.gmail);
       setGoogle(data.google);
       if (data.gmail?.email) setGmailEmail(data.gmail.email);
+    } catch {
+      setMessage("Couldn't reach the server. Check your connection and refresh.");
     } finally {
       setLoading(false);
     }
