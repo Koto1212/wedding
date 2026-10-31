@@ -10,12 +10,22 @@ import { wedding } from "./wedding";
 
 type Sender = { from: string; transport: Transporter };
 
+// Give up on a slow Gmail quickly so an RSVP is never left hanging; the
+// hosts can resend the pass from the dashboard.
+const SMTP_TIMEOUTS = {
+  connectionTimeout: 5000,
+  greetingTimeout: 5000,
+  socketTimeout: 7000,
+};
+const SEND_DEADLINE_MS = 8000;
+
 function appPasswordSender(user: string, pass: string): Sender {
   return {
     from: user,
     transport: nodemailer.createTransport({
       service: "gmail",
       auth: { user, pass },
+      ...SMTP_TIMEOUTS,
     }),
   };
 }
@@ -38,6 +48,7 @@ async function getSender(): Promise<Sender | null> {
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
           refreshToken: google.refreshToken,
         },
+        ...SMTP_TIMEOUTS,
       }),
     };
   }
@@ -171,7 +182,7 @@ export async function sendQrEmail(guest: Guest): Promise<void> {
   });
 
   const c = content(guest.locale);
-  await sender.transport.sendMail({
+  const sending = sender.transport.sendMail({
     from: `"${c.couple.joined}" <${sender.from}>`,
     to: guest.email,
     subject: c.email.subject,
@@ -185,4 +196,20 @@ export async function sendQrEmail(guest: Guest): Promise<void> {
       },
     ],
   });
+
+  // Hard stop in case Gmail stalls mid-send despite the socket timeouts.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      sending,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Gmail took too long to respond. Please try again.")),
+          SEND_DEADLINE_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

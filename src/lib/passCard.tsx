@@ -16,20 +16,46 @@ const MUTED = "#5c6b62";
 
 const ARABIC_ALPHABET = "ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىي٠١٢٣٤٥٦٧٨٩،؛؟ـ";
 
-// Fetches a Google font as TTF, subset to the text we draw. If it can't be
-// loaded the card still renders in the built-in font.
-async function loadFont(family: string, text: string, italic = false) {
-  try {
-    const spec = italic ? ":ital@1" : "";
-    const url = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}${spec}&text=${encodeURIComponent(text)}`;
-    const css = await (await fetch(url)).text();
-    const src = css.match(/src: url\((.+?)\) format\('(opentype|truetype)'\)/)?.[1];
-    if (!src) return null;
-    const data = await (await fetch(src)).arrayBuffer();
-    return { name: family, data, style: italic ? ("italic" as const) : ("normal" as const), weight: 400 as const };
-  } catch {
-    return null;
-  }
+// Every character a card can need, so each font is fetched once and reused
+// for every guest (a per-name subset would mean a Google round trip per card).
+const LATIN_CHARS = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join("") + "·—’";
+const FONT_TIMEOUT_MS = 4000;
+
+type CardFont = {
+  name: string;
+  data: ArrayBuffer;
+  style: "normal" | "italic";
+  weight: 400;
+};
+
+// Kept for the life of the server instance; failed loads aren't cached, so
+// they're retried on the next card.
+const fontCache = new Map<string, Promise<CardFont | null>>();
+
+// Fetches a Google font as TTF. If it can't be loaded in time the card still
+// renders in the built-in font.
+function loadFont(family: string, text: string, italic = false): Promise<CardFont | null> {
+  const key = `${family}|${italic}`;
+  const cached = fontCache.get(key);
+  if (cached) return cached;
+
+  const loading = (async () => {
+    try {
+      const spec = italic ? ":ital@1" : "";
+      const url = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}${spec}&text=${encodeURIComponent(text)}`;
+      const signal = AbortSignal.timeout(FONT_TIMEOUT_MS);
+      const css = await (await fetch(url, { signal })).text();
+      const src = css.match(/src: url\((.+?)\) format\('(opentype|truetype)'\)/)?.[1];
+      if (!src) throw new Error("no font file");
+      const data = await (await fetch(src, { signal })).arrayBuffer();
+      return { name: family, data, style: italic ? ("italic" as const) : ("normal" as const), weight: 400 as const };
+    } catch {
+      fontCache.delete(key);
+      return null;
+    }
+  })();
+  fontCache.set(key, loading);
+  return loading;
 }
 
 // The image renderer joins Arabic letters but lays words out left to right,
@@ -77,22 +103,18 @@ export async function renderPassCard(guest: Guest): Promise<ImageResponse> {
     c.venue.address,
     c.pass.cardFooter,
   ].map(plain);
-  const allText = [couple, ...lines].join(" ");
-  // Latin fonts only get Latin letters; Arabic letters make them fail to load.
-  const latinText = allText.replace(/[^\x00-\x7F·—]/g, "");
-
   // Latin fonts are always loaded so English text (or a guest name typed in
-  // English on the Arabic card) still has glyphs.
+  // English on the Arabic card) still has glyphs. Latin fonts only get Latin
+  // letters; Arabic letters make them fail to load.
   const fonts = (
     await Promise.all([
-      rtl ? null : loadFont("Pinyon Script", couple),
-      // Labels are drawn uppercase, so the font subset needs those letters too.
-      loadFont("Cormorant Garamond", latinText + latinText.toUpperCase()),
-      rtl ? null : loadFont("Cormorant Garamond", lines[3] + lines[6], true),
+      rtl ? null : loadFont("Pinyon Script", LATIN_CHARS),
+      loadFont("Cormorant Garamond", LATIN_CHARS),
+      rtl ? null : loadFont("Cormorant Garamond", LATIN_CHARS, true),
       // Most Arabic fonts (including Amiri and Aref Ruqaa used on the website)
       // use features the image renderer can't read yet or don't join letters
       // here; El Messiri works with the whole alphabet, so any name renders.
-      rtl ? loadFont("El Messiri", ARABIC_ALPHABET + allText) : null,
+      rtl ? loadFont("El Messiri", ARABIC_ALPHABET + " ·") : null,
     ])
   ).filter((f) => f !== null);
 
@@ -178,7 +200,12 @@ export async function renderPassCard(guest: Guest): Promise<ImageResponse> {
     {
       ...CARD_SIZE,
       fonts,
-      headers: { "Cache-Control": "public, max-age=3600" },
+      headers: {
+        "Cache-Control": "public, max-age=3600",
+        // Netlify's CDN keeps the finished card, so repeat views (WhatsApp
+        // previews, guests reopening it) don't re-render it.
+        "Netlify-CDN-Cache-Control": "public, durable, s-maxage=3600, stale-while-revalidate=86400",
+      },
     },
   );
 }
