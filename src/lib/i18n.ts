@@ -212,7 +212,7 @@ const ar: Content = {
     yearWords: "عام ألفين وستة وعشرين",
     time: AR_TIME,
     timeWords: "في تمام الساعة الثامنة مساءً",
-    rsvpDeadline: "١ آب ٢٠٢٦",
+    rsvpDeadline: "١١ كانون الأول ٢٠٢٦",
   },
   meta: {
     title: `${AR_COUPLE} — دعوة زفاف`,
@@ -263,7 +263,7 @@ const ar: Content = {
     viewLocation: "عرض الموقع",
   },
   rsvp: {
-    eyebrow: "يُرجى الرد قبل ١ آب ٢٠٢٦",
+    eyebrow: "يُرجى الرد قبل ١١ كانون الأول ٢٠٢٦",
     title: "تأكيد الحضور",
     name: "الاسم",
     attend: "هل ستحضرون؟",

@@ -33,7 +33,7 @@ export const wedding = {
     mapUrl: "https://www.google.com/maps/search/?api=1&query=Strand+Hotel+Amman",
     note: "We look forward to celebrating with you.",
   },
-  rsvpDeadline: "August 1, 2026",
+  rsvpDeadline: "December 11, 2026",
   // Country code added to local numbers like 079… when opening WhatsApp
   phoneCountryCode: "962",
 } as const;
