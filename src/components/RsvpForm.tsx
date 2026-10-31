@@ -134,7 +134,7 @@ export function RsvpForm() {
           ) : (
             <form onSubmit={onSubmit} className="relative space-y-8">
               <label className="block">
-                <span className={labelClass}>Name(s)</span>
+                <span className={labelClass}>Name</span>
                 <input
                   className="line-field display text-2xl"
                   required
