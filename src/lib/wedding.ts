@@ -4,7 +4,7 @@ export const wedding = {
   monogram: "M & A",
   dateISO: "2026-12-13",
   dateDisplay: "December 13, 2026",
-  timeDisplay: "4:00 in the afternoon",
+  timeDisplay: "8:00 in the evening",
   city: "Amman, Jordan",
   tagline: "Together with their families, request the pleasure of your company",
   // Formal wording printed on the invitation card
@@ -14,7 +14,7 @@ export const wedding = {
     weekday: "Sunday",
     dateWords: "the thirteenth of December",
     yearWords: "two thousand and twenty-six",
-    timeWords: "at four o'clock in the afternoon",
+    timeWords: "at eight o'clock in the evening",
   },
   story: {
     headline: "Our story",

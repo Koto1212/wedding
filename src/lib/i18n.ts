@@ -186,7 +186,7 @@ const AR_ONE = "محمد";
 const AR_TWO = "عرين";
 const AR_COUPLE = `${AR_ONE} و ${AR_TWO}`;
 const AR_DATE = "الأحد ١٣ كانون الأول ٢٠٢٦";
-const AR_TIME = "الساعة الرابعة عصراً";
+const AR_TIME = "الساعة الثامنة مساءً";
 const AR_VENUE = "فندق ستراند";
 const AR_ADDRESS = "شارع الأميرة تغريد محمد، الصويفية، عمّان";
 const AR_CITY = "عمّان، الأردن";
@@ -211,7 +211,7 @@ const ar: Content = {
     month: "كانون الأول",
     yearWords: "عام ألفين وستة وعشرين",
     time: AR_TIME,
-    timeWords: "في تمام الساعة الرابعة عصراً",
+    timeWords: "في تمام الساعة الثامنة مساءً",
     rsvpDeadline: "١ آب ٢٠٢٦",
   },
   meta: {
