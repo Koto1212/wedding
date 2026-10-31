@@ -2,8 +2,6 @@ import { connection, NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { readJSON, storageBackend, writeJSON } from "@/lib/store";
 
-export const dynamic = "force-dynamic";
-
 // Public: only { ok }. Detailed diagnostics require an admin session or
 // HEALTH_SECRET query param — avoids leaking infra details.
 export async function GET(request: Request) {

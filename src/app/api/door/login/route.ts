@@ -7,8 +7,6 @@ import {
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: Request) {
   try {
     const misconfigured = authConfigError();

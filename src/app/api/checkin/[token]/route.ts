@@ -3,8 +3,6 @@ import { canCheckIn } from "@/lib/auth";
 import { checkInByToken } from "@/lib/db";
 import { LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 // The URL inside each guest's QR code, for scans made with a phone's own
 // camera app. Only door staff or a host can record an arrival; anyone else
 // is sent to the door sign-in first.

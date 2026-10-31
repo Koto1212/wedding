@@ -7,8 +7,6 @@ import { clientIp, rateLimit } from "@/lib/rateLimit";
 import type { RsvpStatus } from "@/lib/types";
 import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: Request) {
   let locale: Locale = "en";
   try {

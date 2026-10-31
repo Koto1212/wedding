@@ -7,8 +7,6 @@ import {
 } from "@/lib/gmail";
 import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 async function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

@@ -4,8 +4,6 @@ import { getGuest, markQrSent } from "@/lib/db";
 import { sendQrEmail } from "@/lib/mailer";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

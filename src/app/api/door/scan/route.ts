@@ -4,8 +4,6 @@ import { checkInByToken } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 // QR codes hold the full check-in URL; accept that or a bare code.
 function tokenFrom(scanned: string): string {
   const match = scanned.match(/\/api\/checkin\/([^/?#\s]+)/);

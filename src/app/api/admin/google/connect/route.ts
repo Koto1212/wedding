@@ -8,8 +8,6 @@ import {
   isGoogleConfigured,
 } from "@/lib/google";
 
-export const dynamic = "force-dynamic";
-
 // Starts "Sign in with Google": sends the host to Google's consent screen.
 export async function GET(request: Request) {
   if (!(await isAdminAuthenticated())) {

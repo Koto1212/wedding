@@ -15,8 +15,6 @@ import { isMailConfigured, whatsappLink } from "@/lib/mailer";
 import type { RsvpStatus } from "@/lib/types";
 import { clampString, isValidEmail, LIMITS } from "@/lib/validate";
 
-export const dynamic = "force-dynamic";
-
 const VALID_STATUS: RsvpStatus[] = ["attending", "declined", "maybe", "pending"];
 
 async function unauthorized() {

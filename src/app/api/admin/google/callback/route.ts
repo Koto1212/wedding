@@ -9,8 +9,6 @@ import {
 } from "@/lib/google";
 import { safeEqual } from "@/lib/secrets";
 
-export const dynamic = "force-dynamic";
-
 function back(request: Request, result: string) {
   const response = NextResponse.redirect(
     new URL(`/admin?google=${result}`, request.url),
