@@ -29,7 +29,9 @@ export async function POST(request: Request) {
     }
     if (password.length < 8) {
       return NextResponse.json(
-        { error: "Enter your Gmail app password (or account password)." },
+        // Gmail refuses normal account passwords for sending mail; only a
+        // 16-character app password works.
+        { error: "Enter your 16-character Gmail app password (your normal Gmail password won't work)." },
         { status: 400 },
       );
     }
